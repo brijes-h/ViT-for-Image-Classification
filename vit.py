@@ -2,8 +2,8 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import tensorflow as tf
-from tensorflow.keras.layers import *
-from tensorflow.keras.models import Model
+from keras.layers import *
+from keras.models import Model
 
 class ClassToken(Layer):
     def __init__(self):
@@ -43,6 +43,28 @@ def ViT(cf):  # cf -> configuration file
     token = ClassToken()(embed)   # (None, 257, 768)
     x = Concatenate(axis=1)([token, embed])
     print(x.shape)
+
+def mlp(x, cf):
+    x = Dense(cf["mlp_dim"], activation="gelu")(x)
+    x = Dropout(cf["dropout_rate"])(x)
+    x = Dense(cf["hidden_dim"])(x)
+    x = Dropout(cf["dropout_rate"])(x)
+    return x
+
+def transformer_encoder(x, cf):
+    skip_1 = x
+    x = LayerNormalization()(x)
+    x = MultiHeadAttention(
+        num_heads=cf["num_heads"], key_dim=cf["hidden_dim"]
+    ) (x, x)
+    x = Add()([x, skip_1])
+
+    skip_2 = x
+    x = LayerNormalization()(x)
+    x = mlp(x, cf)
+    x = Add()([x, skip_2])
+
+    return x
 
 
 # driver
