@@ -23,7 +23,7 @@ hp["batch_size"] = 16
 hp["lr"] = 1e-4
 hp["num_epochs"] = 50
 hp["classes_num"] = 5
-hp["class_names"] = ["daisy", "dandelion", "rose", "sunflower", "tulips"]
+hp["class_names"] = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
 
 # Functions
 
@@ -42,6 +42,7 @@ def load_data(path, split=0.1):
 
 def process_image_label(path):
     # reading images
+    path = path.decode()
     image = cv2.imread(path, cv2.IMREAD_COLOR)
     image = cv2.resize(image, (hp["image_size"], hp["image_size"]))
     # image = image/255.0
@@ -80,6 +81,10 @@ def parse(path):
 
     return patches, labels
 
+def tf_dataset(images, batch=32):
+    ds  = tf.data.Dataset.from_tensor_slices((images))
+    ds = ds.map(parse).batch(batch).prefetch(8)
+    return ds
 
 
 # driver code 
@@ -96,3 +101,8 @@ if __name__ == "__main__":
     # Loading dataset
     train_x, valid_x, test_x = load_data(dataset_path)
     print(f"Train: {len(train_x)} - Valid: {len(valid_x)} - Test: {len(test_x)}")
+
+    train_ds = tf_dataset(train_x, batch=hp["batch_size"])
+    valid_ds = tf_dataset(valid_x, batch=hp["batch_size"])
+
+    # MODEL - Vision Transformer
