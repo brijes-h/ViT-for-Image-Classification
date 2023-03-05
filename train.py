@@ -23,7 +23,7 @@ hp["batch_size"] = 16
 hp["lr"] = 1e-4
 hp["num_epochs"] = 50
 hp["classes_num"] = 5
-hp["class_names"] = ["daisy", "dandelion", "rose", "sunflower", "tulip"]
+hp["class_names"] = ["daisy", "dandelion", "rose", "sunflower", "tulips"]
 
 # Functions
 
@@ -44,15 +44,45 @@ def process_image_label(path):
     # reading images
     image = cv2.imread(path, cv2.IMREAD_COLOR)
     image = cv2.resize(image, (hp["image_size"], hp["image_size"]))
-    image = image/255.0
+    # image = image/255.0
     print(image.shape)
 
     # preprocessing into patches
     patch_shape = (hp["patch_size"], hp["patch_size"], hp["channel_num"])
     patches = patchify(image, patch_shape, hp["patch_size"])
-    print(patches.shape)
+    
+    # formatting input
+    patches = np.reshape(patches, (64, 25, 25, 3))
+    # for i in range(64):
+    #     filename = f"{i}.png"
+    #     filepath = os.path.join("files", filename)
+    #     cv2.imwrite(filepath, patches[i])
+    
+    patches = np.reshape(patches, hp["flat_patches_shape"])
+    patches = patches.astype(np.float32)
+
+    # labels
+    #print(path)
+    class_name = path.split("\\")[-2]
+    class_index = hp["class_names"].index(class_name)
+    class_index = np.array(class_index, dtype=np.int32)
+
+    return patches, class_index
 
 
+def parse(path):
+    patches, labels = tf.numpy_function(process_image_label, [path], [tf.float32, tf.int32])
+    # one hot encoding
+    labels = tf.one_hot(labels, hp["classes_num"])
+
+    patches.set_shape(hp["flat_patches_shape"])
+    labels.set_shape(hp["classes_num"])
+
+    return patches, labels
+
+
+
+# driver code 
 
 if __name__ == "__main__":
     np.random.seed(42)
@@ -66,5 +96,3 @@ if __name__ == "__main__":
     # Loading dataset
     train_x, valid_x, test_x = load_data(dataset_path)
     print(f"Train: {len(train_x)} - Valid: {len(valid_x)} - Test: {len(test_x)}")
-
-    process_image_label(train_x[0])
