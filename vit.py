@@ -25,25 +25,6 @@ class ClassToken(Layer):
         return cls
 
 
-
-
-def ViT(cf):  # cf -> configuration file
-    input_shape = (cf["num_patches"], cf["patch_size"]*cf["patch_size"]*cf["channel_num"])
-    inputs = Input(input_shape)
-
-    # Patch & Position embedding
-    patch_embed = Dense(cf["hidden_dim"])(inputs)  # (None, 256, 768)
-
-    positions = tf.range(start=0, limit=cf["num_patches"], delta=1)
-    pos_embed = Embedding(input_dim = cf["num_patches"], output_dim = cf["hidden_dim"])(positions)
-
-    embed = patch_embed + pos_embed
-
-    # Adding class token
-    token = ClassToken()(embed)   # (None, 257, 768)
-    x = Concatenate(axis=1)([token, embed])
-    print(x.shape)
-
 def mlp(x, cf):
     x = Dense(cf["mlp_dim"], activation="gelu")(x)
     x = Dropout(cf["dropout_rate"])(x)
@@ -67,6 +48,36 @@ def transformer_encoder(x, cf):
     return x
 
 
+def ViT(cf):  # cf -> configuration file
+    input_shape = (cf["num_patches"], cf["patch_size"]*cf["patch_size"]*cf["channel_num"])
+    inputs = Input(input_shape)
+
+    # Patch & Position embedding
+    patch_embed = Dense(cf["hidden_dim"])(inputs)  # (None, 256, 768)
+
+    positions = tf.range(start=0, limit=cf["num_patches"], delta=1)
+    pos_embed = Embedding(input_dim = cf["num_patches"], output_dim = cf["hidden_dim"])(positions)
+
+    embed = patch_embed + pos_embed
+
+    # Adding class token
+    token = ClassToken()(embed)   # (None, 257, 768)
+    x = Concatenate(axis=1)([token, embed])
+    
+    for _ in range (cf["num_layers"]):
+        x = transformer_encoder(x, cf)
+
+    # Classification
+    x = LayerNormalization()(x)
+    x = x[:, 0, :]
+    x = Dense(cf["classes_num"], activation="softmax")(x)
+
+    model = Model(inputs, x)
+    
+    return model
+
+
+
 # driver
 if __name__ == "__main__":
     config = {}
@@ -80,4 +91,7 @@ if __name__ == "__main__":
     config["channel_num"] = 3
     config["classes_num"] = 5
 
-    ViT(config)
+    model = ViT(config)
+    model.summary()
+
+

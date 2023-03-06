@@ -8,6 +8,8 @@ from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from patchify import patchify
 import tensorflow as tf
+from keras.callbacks import ModelCheckpoint, CSVLogger, ReduceLROnPlateau, EarlyStopping
+from vit import ViT
 
 
 # Hyperparameters
@@ -24,6 +26,12 @@ hp["lr"] = 1e-4
 hp["num_epochs"] = 50
 hp["classes_num"] = 5
 hp["class_names"] = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
+
+hp["num_layers"] = 12
+hp["hidden_dim"] = 768
+hp["mlp_dim"] = 3072
+hp["num_heads"] = 12
+hp["dropout_rate"] = 0.1
 
 # Functions
 
@@ -46,7 +54,7 @@ def process_image_label(path):
     image = cv2.imread(path, cv2.IMREAD_COLOR)
     image = cv2.resize(image, (hp["image_size"], hp["image_size"]))
     # image = image/255.0
-    print(image.shape)
+
 
     # preprocessing into patches
     patch_shape = (hp["patch_size"], hp["patch_size"], hp["channel_num"])
@@ -94,7 +102,7 @@ if __name__ == "__main__":
     tf.random.set_seed(42)
 
     # Directory for storing files
-    dataset_path = "flower_photos"
+    dataset_path = "D:/git_repos/ViT_imageclassification/flower_photos"
     model_path = os.path.join("files", "model.h5")
     csv_path = os.path.join("files", "log.csv")
 
@@ -106,3 +114,23 @@ if __name__ == "__main__":
     valid_ds = tf_dataset(valid_x, batch=hp["batch_size"])
 
     # MODEL - Vision Transformer
+    model = ViT(hp)
+    model.compile(
+        loss = "categorical_crossentropy",
+        optimizer = tf.keras.optimizers.Adam(hp["lr"], clipvalue=1.0),
+        metrics=["acc"]
+    )
+
+    callbacks = [
+        ModelCheckpoint(model_path, monitor='val_loss', verbose=1, save_best_only=True),
+        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=1e-10, verbose=1),
+        CSVLogger(csv_path),
+        EarlyStopping(monitor='val_loss', patience=50, restore_best_weights=False),
+    ]
+
+    model.fit(
+        train_ds,
+        epochs=hp["num_epochs"],
+        validation_data=valid_ds,
+        callbacks=callbacks
+    )
